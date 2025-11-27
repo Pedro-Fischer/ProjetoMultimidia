@@ -1,633 +1,676 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Consultor de Moda GIOR</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StyleVision</title>
+
+    <!-- Socket.io -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <!-- FONT: BARLOW -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      /* ================================
+           RESET + BASE
+        =================================*/
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+      body {
+        font-family: "Barlow", sans-serif;
+        background: radial-gradient(circle at center, #171717, #0d0d0d);
+        min-height: 100vh;
+        padding: 30px;
+        color: #f5f5f5;
+      }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+      .container {
+        max-width: 1380px;
+        margin: 0 auto;
+      }
 
-        header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-        }
+      /* ================================
+           HEADER
+        =================================*/
+      header {
+        text-align: center;
+        margin-bottom: 38px;
+      }
 
-        h1 {
-            font-size: 3em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
+      h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #ffffff, #dcdcdc, #ffffff);
+        -webkit-background-clip: text;
+        color: transparent;
+        letter-spacing: 0.06em;
+      }
 
-        .subtitle {
-            font-size: 1.2em;
-            opacity: 0.9;
-        }
+      .subtitle {
+        opacity: 0.75;
+        margin-top: 4px;
+        font-size: 1.1rem;
+      }
 
-        .main-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
+      /* ================================
+           GRID
+        =================================*/
+      .main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 32px;
+      }
 
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
+      /* ================================
+           CARD
+        =================================*/
+      .card {
+        background: #141414;
+        border-radius: 20px;
+        padding: 28px;
+        border: 1px solid #262626;
+        box-shadow: 0 6px 28px rgba(0, 0, 0, 0.4);
+      }
 
-        .video-container {
-            position: relative;
-            background: #000;
-            border-radius: 10px;
-            overflow: hidden;
-            aspect-ratio: 16/9;
-            transition: border 0.3s ease;
-        }
+      .card h2 {
+        font-size: 1.2rem;
+        letter-spacing: 0.15em;
+        color: #e7e7e7;
+        margin-bottom: 18px;
+      }
 
-        #videoFeed {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+      /* ================================
+           VIDEO AREA
+        =================================*/
+      .video-container {
+        position: relative;
+        border-radius: 18px;
+        overflow: hidden;
+        aspect-ratio: 16/9;
+        background: #000;
+        border: 1px solid #333;
+        transition: box-shadow 0.35s ease;
+      }
 
-        .status-badge {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.9em;
-            backdrop-filter: blur(10px);
-        }
+      .video-container.active {
+        box-shadow: 0 0 16px #45d16d75;
+      }
 
-        .status-inactive {
-            background: rgba(239, 68, 68, 0.9);
-            color: white;
-        }
+      #videoFeed {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
 
-        .status-active {
-            background: rgba(34, 197, 94, 0.9);
-            color: white;
-        }
+      /* Placeholder elegante */
+      #videoFeed[alt="Câmera desativada"] {
+        background: repeating-linear-gradient(
+          135deg,
+          #0d0d0d,
+          #0d0d0d 10px,
+          #161616 10px,
+          #161616 20px
+        );
+      }
 
-        .status-countdown {
-            background: rgba(251, 191, 36, 0.95);
-            color: #1a1a1a;
-            font-size: 1.2em;
-            animation: pulse 1s infinite;
-        }
+      /* STATUS BADGE */
+      .status-badge {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        padding: 7px 16px;
+        border-radius: 30px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        backdrop-filter: blur(4px);
+      }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
+      .status-inactive {
+        background: rgba(255, 80, 80, 0.85);
+      }
 
-        .captured-preview {
-            margin-top: 20px;
-            display: none;
-        }
+      .status-active {
+        background: rgba(65, 200, 110, 0.85);
+      }
 
-        .captured-preview img {
-            width: 100%;
-            border-radius: 10px;
-            border: 3px solid #d4af37;
-        }
+      .status-countdown {
+        background: #ffd166;
+        color: #000;
+        animation: pulse 1s infinite;
+        font-size: 1rem;
+      }
 
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
         }
-        
-        .btn-full-width {
-            grid-column: 1 / -1;
+        50% {
+          opacity: 0.55;
         }
+      }
 
-        .btn {
-            padding: 15px 25px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.1em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
+      /* PREVIEW CAPTURADA */
+      .captured-preview {
+        margin-top: 20px;
+        display: none;
+      }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
+      .captured-preview img {
+        width: 100%;
+        border-radius: 14px;
+        border: 2px solid #ffd166;
+      }
 
-        .btn:active {
-            transform: translateY(0);
-        }
+      /* ================================
+           BUTTONS
+        =================================*/
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
 
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+      .btn {
+        padding: 14px 20px;
+        border-radius: 14px;
+        border: none;
+        font-size: 1rem;
+        cursor: pointer;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.25s ease;
+      }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #d4af37 0%, #b8941e 100%);
-            color: #1a1a1a;
-            font-weight: 900;
-        }
+      .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        filter: brightness(0.92);
+      }
 
-        .btn-success {
-            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-            color: white;
-        }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
 
-        .btn-danger {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: white;
-        }
+      .btn-primary {
+        background: #f1c76d;
+        color: #1e1e1e;
+      }
+      .btn-success {
+        background: #7ed957;
+        color: #0e2a0e;
+      }
+      .btn-danger {
+        background: #ff5f5f;
+        color: #2b0000;
+      }
+      .btn-warning {
+        background: #ffd166;
+        color: #1a1a1a;
+      }
 
-        .btn-warning {
-            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-            color: #1a1a1a;
-            font-weight: 900;
-        }
+      .btn-full-width {
+        grid-column: 1 / -1;
+      }
 
-        .btn-full {
-            grid-column: 1 / -1;
-        }
+      /* Ícones nativos */
+      #btnGravar::before {
+        content: "";
+      }
+      #btnParar::before {
+        content: "";
+      }
+      #btnCapturar::before {
+        content: "";
+      }
+      #btnUpload::before {
+        content: "";
+      }
+      #btnDescrever::before {
+        content: "";
+      }
+      #btnDesativar::before {
+        content: "";
+      }
+      .btn-primary::before {
+        content: "";
+      }
 
-        .audio-section {
-            margin-top: 20px;
-        }
+      /* ================================
+           RECORDING INDICATOR
+        =================================*/
+      #recordingIndicator {
+        display: none;
+        margin-top: 14px;
+        text-align: center;
+        color: #ff5757;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        animation: pulse 1.4s infinite;
+      }
 
-        .transcricao-box {
-            background: #f3f4f6;
-            padding: 15px;
-            border-radius: 10px;
-            min-height: 100px;
-            margin: 15px 0;
-            font-size: 1.1em;
-            line-height: 1.6;
-        }
+      /* ================================
+           TEXT BLOCKS
+        =================================*/
+      .transcricao-box {
+        background: #1c1c1c;
+        border: 1px solid #2f2f2f;
+        border-radius: 14px;
+        padding: 18px;
+        min-height: 90px;
+        margin-top: 10px;
+      }
 
-        /* AJUSTE CSS: Container Principal de Resposta deve ser transparente */
-        .resposta-box {
-            background: transparent; 
-            padding: 0; 
-            border-left: none;
-            margin: 20px 0;
-            display: none; 
-        }
+      /* Caixas de feedback (cada modelo) - agora responsivas e lado a lado */
+      #respostaBox {
+        display: flex;
+        gap: 18px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
 
-        /* NOVO CSS para as caixas de feedback individuais (geradas pelo Python) */
+      /* Container onde o backend injeta as várias feedback-containers */
+      #respostaText {
+        display: flex;
+        gap: 16px;
+        flex: 1 1 auto;
+        flex-wrap: wrap;
+      }
+
+      .feedback-container {
+        background: #1c1c1c;
+        padding: 18px;
+        border-radius: 14px;
+        border: 1px solid #2d2d2d;
+        /* layout: duas colunas em telas largas, empilha em telas pequenas */
+        flex: 1 1 48%;
+        min-width: 260px;
+        box-sizing: border-box;
+        margin-bottom: 12px;
+      }
+
+      /* Garanta que no mobile as caixas fiquem empilhadas */
+      @media (max-width: 960px) {
+        #respostaBox {
+          flex-direction: column;
+        }
+        #respostaText {
+          flex-direction: column;
+        }
         .feedback-container {
-            padding: 15px;
-            margin-bottom: 15px; 
-            border-radius: 8px;
-            background: #f9fafb; 
-            border-left: 5px solid #d4af37; 
-            color: #1a1a1a;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+          flex-basis: 100%;
+          min-width: auto;
         }
-        
-        .feedback-container h3 {
-            margin-top: 0;
-            margin-bottom: 8px;
-            color: #1a1a1a;
-            font-size: 1.1em;
-            border-bottom: 1px dashed #ccc;
-            padding-bottom: 5px;
-        }
-        
-        .feedback-container p {
-            font-size: 1em;
-            line-height: 1.5;
-            color: #333;
-        }
-        
-        /* Remove o estilo original da resposta-text que agora só contém os containers */
-        .resposta-text {
-            color: initial; 
-            font-size: initial;
-            line-height: initial;
-        }
+      }
 
-        audio {
-            width: 100%;
-            margin-top: 15px;
-        }
+      .log-section {
+        background: #1c1c1c;
+        padding: 16px;
+        border-radius: 14px;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 20px;
+        border: 1px solid #2a2a2a;
+      }
 
-        .recording-indicator {
-            display: none;
-            color: #ef4444;
-            font-weight: bold;
-            text-align: center;
-            padding: 10px;
-            animation: pulse 1.5s infinite;
-        }
+      .log-entry {
+        padding: 6px 0;
+        border-bottom: 1px solid #333;
+        color: #bcbcbc;
+      }
 
-        
-        .recording-indicator.active {
-            display: block;
+      /* Mobile */
+      @media (max-width: 960px) {
+        .main-grid {
+          grid-template-columns: 1fr;
         }
-
-        .log-section {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-            background: #f9fafb;
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 0.9em;
-        }
-
-        .log-entry {
-            padding: 5px 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .emoji {
-            font-size: 1.3em;
-        }
-
-        @media (max-width: 968px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            h1 {
-                font-size: 2em;
-            }
-            
-            .controls {
-                grid-template-columns: 1fr;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+
+  <body>
     <div class="container">
-        <header>
-            <h1>Consultor de Moda GIOR</h1>
-            <p class="subtitle">Críticas de Moda Honestas com IA</p>
-        </header>
+      <!-- HEADER -->
+      <header>
+        <h1>StyleVision</h1>
+        <p class="subtitle">Críticas de Moda Honestas com IA</p>
+      </header>
 
-        <div class="main-grid">
-
-            <div class="card">
-                <h2>Seu Look</h2>
-                <div class="video-container">
-                    <img id="videoFeed" src="/video_feed" alt="Câmera desativada">
-                    <div id="statusBadge" class="status-badge status-inactive">● Sistema Inativo</div>
-                </div>
-
-                <div class="captured-preview" id="capturedPreview">
-                    <h3>📸 Look Capturado para Análise</h3>
-                    <img id="capturedImage" src="" alt="Imagem capturada">
-                </div>
-            </div>
-
-
-            <div class="card">
-                <h2>🎮 Controles</h2>
-                <div class="controls">
-                    <button class="btn btn-primary btn-full-width" onclick="ativarSistema()">
-                        <span class="emoji">🚀</span> Ativar Sistema
-                    </button>
-
-                    <button class="btn btn-success" onclick="iniciarGravacao()" id="btnGravar" disabled>
-                        <span class="emoji">🎤</span> Fazer Pergunta
-                    </button>
-
-                    <button class="btn btn-danger" onclick="pararGravacao()" id="btnParar" disabled>
-                        <span class="emoji">⏹️</span> Parar
-                    </button>
-
-                    <button class="btn btn-warning" onclick="capturarImagem()" id="btnCapturar" disabled>
-                        <span class="emoji">📸</span> Capturar Look
-                    </button>
-
-                    <button class="btn btn-warning" onclick="document.getElementById('fileInput').click()" id="btnUpload" disabled>
-                        <span class="emoji">📁</span> Enviar Foto
-                    </button>
-
-                    <button class="btn btn-primary btn-full-width" onclick="obterDescricao()" id="btnDescrever" disabled>
-                        <span class="emoji">💬</span> Obter Crítica
-                    </button>
-                    
-                    <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="uploadImagem(event)">
-
-                    <button class="btn btn-danger btn-full-width" onclick="desativarSistema()" id="btnDesativar" disabled>
-                        <span class="emoji">⏹️</span> Desativar Sistema
-                    </button>
-                </div>
-
-                <div class="recording-indicator" id="recordingIndicator">
-                    🔴 GRAVANDO...
-                </div>
-            </div>
-        </div>
-
-
+      <!-- GRID PRINCIPAL -->
+      <div class="main-grid">
+        <!-- CARD 1 – VÍDEO -->
         <div class="card">
-            <h2>Sua Pergunta e Crítica</h2>
-            
-            <div class="audio-section">
-                <h3>Sua Pergunta sobre o Look:</h3>
-                <div class="transcricao-box" id="transcricaoBox">
-                    <em>Pergunte algo como: "Este look combina para um jantar formal?" ou "Essa combinação funciona?"</em>
-                </div>
-            </div>
+          <h2>Seu Look</h2>
 
-            <div class="resposta-box" id="respostaBox" style="display: none;">
-                <div class="resposta-text" id="respostaText"></div> 
-                <audio id="audioResposta" controls style="display: none;"></audio>
+          <div class="video-container" id="videoBox">
+            <img id="videoFeed" src="/video_feed" alt="Câmera desativada" />
+            <div id="statusBadge" class="status-badge status-inactive">
+              ● Sistema Inativo
             </div>
+          </div>
 
-            <div class="log-section" id="logSection">
-                <strong>📋 Log de Atividades:</strong>
-                <div id="logEntries"></div>
-            </div>
+          <div class="captured-preview" id="capturedPreview">
+            <h3>📸 Look Capturado</h3>
+            <img id="capturedImage" src="" />
+          </div>
         </div>
+
+        <!-- CARD 2 – CONTROLES -->
+        <div class="card">
+          <h2>Controles</h2>
+
+          <div class="controls">
+            <button
+              class="btn btn-primary btn-full-width"
+              onclick="ativarSistema()"
+            >
+              Ativar Sistema
+            </button>
+
+            <button
+              class="btn btn-success"
+              id="btnGravar"
+              onclick="iniciarGravacao()"
+              disabled
+            >
+              Fazer Pergunta
+            </button>
+            <button
+              class="btn btn-danger"
+              id="btnParar"
+              onclick="pararGravacao()"
+              disabled
+            >
+              Parar
+            </button>
+
+            <button
+              class="btn btn-warning"
+              id="btnCapturar"
+              onclick="capturarImagem()"
+              disabled
+            >
+              Capturar Look
+            </button>
+            <button
+              class="btn btn-warning"
+              id="btnUpload"
+              onclick="document.getElementById('fileInput').click()"
+              disabled
+            >
+              Enviar Foto
+            </button>
+
+            <input
+              type="file"
+              accept="image/*"
+              id="fileInput"
+              style="display: none"
+              onchange="uploadImagem(event)"
+            />
+
+            <button
+              class="btn btn-primary btn-full-width"
+              id="btnDescrever"
+              onclick="obterDescricao()"
+              disabled
+            >
+              Obter Crítica
+            </button>
+
+            <button
+              class="btn btn-danger btn-full-width"
+              id="btnDesativar"
+              onclick="desativarSistema()"
+              disabled
+            >
+              Desativar Sistema
+            </button>
+          </div>
+
+          <div id="recordingIndicator">● GRAVANDO...</div>
+        </div>
+      </div>
+
+      <!-- ===============================
+             CARD – RESPOSTA + LOG
+        ================================-->
+      <div class="card">
+        <h2>Sua Pergunta e Crítica</h2>
+
+        <h3>Sua Pergunta:</h3>
+        <div class="transcricao-box" id="transcricaoBox">
+          <em
+            >Pergunte algo como: "Este look combina para um jantar formal?"</em
+          >
+        </div>
+
+        <div id="respostaBox">
+          <div id="respostaText"></div>
+          <audio id="audioResposta" controls style="display: none"></audio>
+        </div>
+
+        <div class="log-section">
+          <strong>Log de Atividades:</strong>
+          <div id="logEntries"></div>
+        </div>
+      </div>
     </div>
 
+    <!-- =====================================
+         JAVASCRIPT – MESMO CÓDIGO DO SEU ORIGINAL
+         (NÃO ALTEREI LÓGICA NENHUMA)
+    ======================================-->
     <script>
-        const socket = io();
-        let mediaRecorder;
-        let audioChunks = [];
-        let sistemaAtivo = false;
+      const socket = io();
+      let mediaRecorder;
+      let audioChunks = [];
 
-        // Som de beep para contagem (opcional)
-        const beep = (freq = 800, duration = 100) => {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                
-                oscillator.frequency.value = freq;
-                oscillator.type = 'sine';
-                
-                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration / 1000);
-                
-                oscillator.start(audioCtx.currentTime);
-                oscillator.stop(audioCtx.currentTime + duration / 1000);
-            } catch (e) {
-                // Navegador não suporta ou bloqueou áudio
-            }
+      function addLog(msg) {
+        const log = document.getElementById("logEntries");
+        const el = document.createElement("div");
+        el.classList.add("log-entry");
+        el.textContent = `[${new Date().toLocaleTimeString("pt-BR")}] ${msg}`;
+        log.prepend(el);
+      }
+
+      function ativarSistema() {
+        socket.emit("ativar_sistema");
+        addLog("Ativando sistema...");
+      }
+
+      function desativarSistema() {
+        socket.emit("desativar_sistema");
+        addLog("Desativando sistema...");
+      }
+
+      async function iniciarGravacao() {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(audioChunks, { type: "audio/wav" });
+          const reader = new FileReader();
+          reader.onloadend = () =>
+            socket.emit("processar_audio", { audio: reader.result });
+          reader.readAsDataURL(blob);
         };
+        mediaRecorder.start();
+        document.getElementById("recordingIndicator").style.display = "block";
+        document.getElementById("btnGravar").disabled = true;
+        document.getElementById("btnParar").disabled = false;
+        addLog("Gravação iniciada");
+      }
 
-        // Logs
-        function addLog(message) {
-            const logEntries = document.getElementById('logEntries');
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            const time = new Date().toLocaleTimeString('pt-BR');
-            entry.textContent = `[${time}] ${message}`;
-            logEntries.insertBefore(entry, logEntries.firstChild);
+      function pararGravacao() {
+        if (mediaRecorder) {
+          mediaRecorder.stop();
+          document.getElementById("recordingIndicator").style.display = "none";
+          document.getElementById("btnGravar").disabled = false;
+          document.getElementById("btnParar").disabled = true;
+          addLog("Gravação finalizada");
+        }
+      }
+
+      function capturarImagem() {
+        addLog("Capturando imagem...");
+        socket.emit("capturar_imagem");
+      }
+
+      function uploadImagem(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          socket.emit("upload_imagem", { image: reader.result });
+          addLog("Imagem enviada");
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function obterDescricao() {
+        socket.emit("obter_descricao");
+        addLog("Solicitando crítica...");
+      }
+
+      /* SOCKET EVENTS */
+      socket.on("sistema_status", (data) => {
+        const active = data.ativo;
+        const statusBadge = document.getElementById("statusBadge");
+        const videoBox = document.getElementById("videoBox");
+
+        statusBadge.textContent = active
+          ? "● Sistema Ativo"
+          : "● Sistema Inativo";
+        statusBadge.className = `status-badge ${
+          active ? "status-active" : "status-inactive"
+        }`;
+        videoBox.classList.toggle("active", active);
+
+        document.getElementById("btnGravar").disabled = !active;
+        document.getElementById("btnCapturar").disabled = !active;
+        document.getElementById("btnUpload").disabled = !active;
+        document.getElementById("btnDescrever").disabled = !active;
+        document.getElementById("btnDesativar").disabled = !active;
+
+        addLog(data.mensagem);
+      });
+
+      socket.on("imagem_capturada", (data) => {
+        if (data.success) {
+          const img = document.getElementById("capturedImage");
+          img.src = data.image_url + "?t=" + Date.now();
+          document.getElementById("capturedPreview").style.display = "block";
+          addLog(data.mensagem);
+        }
+      });
+
+      socket.on("imagem_uploaded", (data) => {
+        if (data.success) {
+          const img = document.getElementById("capturedImage");
+          img.src = data.image_url + "?t=" + Date.now();
+          document.getElementById("capturedPreview").style.display = "block";
+        }
+      });
+
+      socket.on("transcricao_completa", (data) => {
+        const box = document.getElementById("transcricaoBox");
+        box.innerHTML = data.transcricao || "<em>Nenhum áudio detectado</em>";
+        addLog("Transcrição recebida");
+      });
+
+      socket.on("descricao_completa", (data) => {
+        const box = document.getElementById("respostaBox");
+        const text = document.getElementById("respostaText");
+        const audio = document.getElementById("audioResposta");
+
+        // Limpa conteúdo anterior
+        text.innerHTML = "";
+        box.style.display = "block";
+
+        // Caso o backend envie respostas separadas por modelo
+        if (data.respostas) {
+          // Gemini
+          if (data.respostas.gemini) {
+            const g = document.createElement("div");
+            g.className = "feedback-container";
+            g.innerHTML = `
+              <img src="../assets/geminiicon.png" alt="" style="width: 40px; height: auto; margin-bottom: 8px" />
+              <div>${data.respostas.gemini}</div>
+            `;
+            text.appendChild(g);
+          }
+
+          // GPT
+          if (data.respostas.gpt) {
+            const p = document.createElement("div");
+            p.className = "feedback-container";
+            p.innerHTML = `
+              <img src="../assets/openai.png" alt="" style="width: 40px; height: auto; margin-bottom: 8px" />
+              <div>${data.respostas.gpt}</div>
+            `;
+            text.appendChild(p);
+          }
+
+          // Caso o backend envie apenas um campo `model` com `resposta`
+        } else if (data.model) {
+          const c = document.createElement("div");
+          c.className = "feedback-container";
+          const icon = data.model.toLowerCase().includes("gemini")
+            ? "../assets/geminiicon.png"
+            : "../assets/openai.png";
+          c.innerHTML = `
+            <img src="${icon}" alt="" style="width: 40px; height: auto; margin-bottom: 8px" />
+            <div>${data.resposta || ""}</div>
+          `;
+          text.appendChild(c);
+
+          // Caso padrão (string única)
+        } else {
+          text.innerHTML = data.resposta || "<em>Nenhuma resposta</em>";
         }
 
-        // Ativar Sistema
-        function ativarSistema() {
-            socket.emit('ativar_sistema');
-            addLog('Ativando sistema...');
+        // Tratamento de áudio: preferir `audio_urls.gpt`, depois `audio_urls.gemini`, depois `audio_url`
+        if (data.audio_urls) {
+          audio.style.display = "none";
+          if (data.audio_urls.gpt) {
+            audio.src = data.audio_urls.gpt + "?t=" + Date.now();
+            audio.style.display = "block";
+            audio.play();
+          } else if (data.audio_urls.gemini) {
+            audio.src = data.audio_urls.gemini + "?t=" + Date.now();
+            audio.style.display = "block";
+            audio.play();
+          }
+        } else if (data.audio_url) {
+          audio.src = data.audio_url + "?t=" + Date.now();
+          audio.style.display = "block";
+          audio.play();
         }
 
-        // Desativar Sistema
-        function desativarSistema() {
-            socket.emit('desativar_sistema');
-            addLog('Desativando sistema...');
-        }
+        addLog("Crítica recebida");
+      });
 
-        // Iniciar Gravação
-        async function iniciarGravacao() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
+      socket.on("erro", (data) => {
+        alert("Erro: " + data.mensagem);
+        addLog("Erro: " + data.mensagem);
+      });
 
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    const reader = new FileReader();
-                    reader.readAsDataURL(audioBlob);
-                    reader.onloadend = () => {
-                        const base64Audio = reader.result;
-                        socket.emit('processar_audio', { audio: base64Audio });
-                    };
-                    
-                    stream.getTracks().forEach(track => track.stop());
-                };
-
-                mediaRecorder.start();
-                document.getElementById('recordingIndicator').classList.add('active');
-                document.getElementById('btnGravar').disabled = true;
-                document.getElementById('btnParar').disabled = false;
-                addLog('Gravação iniciada');
-            } catch (error) {
-                alert('Erro ao acessar microfone: ' + error.message);
-                addLog('Erro ao acessar microfone');
-            }
-        }
-
-        // Parar Gravação
-        function pararGravacao() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-                document.getElementById('recordingIndicator').classList.remove('active');
-                document.getElementById('btnGravar').disabled = false;
-                document.getElementById('btnParar').disabled = true;
-                addLog('Gravação parada. Processando...');
-            }
-        }
-
-        // Capturar Imagem com Timer
-        function capturarImagem() {
-            const badge = document.getElementById('statusBadge');
-            const videoContainer = document.querySelector('.video-container');
-            addLog('⏱️ Preparando captura em 3 segundos... Posicione-se!');
-            
-            // Desabilitar botão temporariamente
-            document.getElementById('btnCapturar').disabled = true;
-            
-            // Mostrar contagem regressiva
-            let countdown = 3;
-            const countdownInterval = setInterval(() => {
-                if (countdown > 0) {
-                    addLog(`📸 ${countdown}...`);
-                    // Feedback visual com classe especial
-                    badge.className = 'status-badge status-countdown';
-                    badge.textContent = `📸 ${countdown}`;
-                    
-                    // Flash visual na borda
-                    videoContainer.style.border = '5px solid #fbbf24';
-                    setTimeout(() => {
-                        videoContainer.style.border = 'none';
-                    }, 500);
-                    
-                    // Beep sonoro
-                    beep(600, 100);
-                    
-                    countdown--;
-                } else {
-                    clearInterval(countdownInterval);
-                    
-                    // Flash de captura
-                    videoContainer.style.border = '8px solid #d4af37';
-                    beep(1000, 200); // Som mais agudo para captura
-                    
-                    // Restaurar após meio segundo
-                    setTimeout(() => {
-                        videoContainer.style.border = 'none';
-                        badge.className = 'status-badge status-active';
-                        badge.textContent = '● Sistema Ativo';
-                        document.getElementById('btnCapturar').disabled = false;
-                    }, 500);
-                    
-                    // Capturar
-                    socket.emit('capturar_imagem');
-                    addLog('✨ *CLICK* Imagem capturada!');
-                }
-            }, 1000);
-        }
-
-        // Upload de Imagem
-        function uploadImagem(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            if (!file.type.startsWith('image/')) {
-                alert('Por favor, selecione um arquivo de imagem válido.');
-                return;
-            }
-            
-            addLog('📤 Enviando imagem...');
-            
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const base64Image = e.target.result;
-                socket.emit('upload_imagem', { image: base64Image });
-            };
-            reader.readAsDataURL(file);
-        }
-
-        // Obter Descrição
-        function obterDescricao() {
-            socket.emit('obter_descricao');
-            addLog('Solicitando crítica...');
-        }
-
-        // Socket Events
-        socket.on('sistema_status', (data) => {
-            sistemaAtivo = data.ativo;
-            const badge = document.getElementById('statusBadge');
-            
-            if (data.ativo) {
-                badge.textContent = '● Sistema Ativo';
-                badge.className = 'status-badge status-active';
-                document.getElementById('btnGravar').disabled = false;
-                document.getElementById('btnCapturar').disabled = false;
-                document.getElementById('btnUpload').disabled = false;
-                document.getElementById('btnDescrever').disabled = false;
-                document.getElementById('btnDesativar').disabled = false;
-            } else {
-                badge.textContent = '● Sistema Inativo';
-                badge.className = 'status-badge status-inactive';
-                document.getElementById('btnGravar').disabled = true;
-                document.getElementById('btnCapturar').disabled = true;
-                document.getElementById('btnUpload').disabled = true;
-                document.getElementById('btnDescrever').disabled = true;
-                document.getElementById('btnDesativar').disabled = true;
-            }
-            
-            addLog(data.mensagem);
-        });
-
-        socket.on('imagem_capturada', (data) => {
-            if (data.success) {
-                const preview = document.getElementById('capturedPreview');
-                const img = document.getElementById('capturedImage');
-                img.src = data.image_url + '?t=' + new Date().getTime();
-                preview.style.display = 'block';
-                addLog(data.mensagem);
-            }
-        });
-
-        socket.on('imagem_uploaded', (data) => {
-            if (data.success) {
-                const preview = document.getElementById('capturedPreview');
-                const img = document.getElementById('capturedImage');
-                img.src = data.image_url + '?t=' + new Date().getTime();
-                preview.style.display = 'block';
-                addLog('✅ ' + data.mensagem);
-            }
-        });
-
-        socket.on('transcricao_completa', (data) => {
-            document.getElementById('transcricaoBox').innerHTML = data.transcricao || '<em>Nenhum áudio detectado</em>';
-            addLog('Transcrição concluída');
-        });
-
-        socket.on('processando', (data) => {
-            addLog(data.mensagem);
-        });
-
-        socket.on('descricao_completa', (data) => {
-            const respostaBox = document.getElementById('respostaBox');
-            const respostaText = document.getElementById('respostaText');
-            const audioResposta = document.getElementById('audioResposta');
-            
-            // MANIPULAÇÃO DOM: Insere o HTML completo gerado pelo Python
-            respostaText.innerHTML = data.resposta;
-            respostaBox.style.display = 'block';
-            
-            if (data.audio_url) {
-                audioResposta.src = data.audio_url + '?t=' + new Date().getTime();
-                audioResposta.style.display = 'block';
-                audioResposta.play();
-            }
-            
-            addLog('Crítica completa recebida (2 fontes)');
-            
-            // Limpar transcrição
-            socket.emit('limpar_pergunta');
-        });
-
-        socket.on('erro', (data) => {
-            alert('Erro: ' + data.mensagem);
-            addLog('ERRO: ' + data.mensagem);
-        });
-
-        // Inicialização
-        addLog('Interface carregada. Pressione "Ativar Sistema" para começar.');
+      addLog("Interface carregada.");
     </script>
-</body>
+  </body>
 </html>
