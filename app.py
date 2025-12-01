@@ -399,7 +399,7 @@ def handle_descricao():
         if gior.dual_mode:
             emit('processando', {'mensagem': 'Processando OpenAI + Gemini...'})
         else:
-            emit('processando', {'mensagem': 'Processando apenas OpenAI (modo rápido)...'})
+            emit('processando', {'mensagem': 'Processando apenas OpenAI...'})
 
         encoded_image = gior.encode_image()
         if not encoded_image:
@@ -434,7 +434,14 @@ def handle_descricao():
 
         html_openai = f"""
             <div class=\"feedback-container\">
-                <h3>1. 👔 Crítica do Consultor GIOR (OpenAI):</h3>
+                <h3>
+                    <img
+                        src=\"static/openai.jpg"
+                        alt=\"OpenAI\"
+                        style=\"width:1em;height:1em;vertical-align:-0.18em;margin-right:0.35em;object-fit:contain;\"
+                    />
+                    1. Crítica do Consultor GIOR (OpenAI):
+                </h3>
                 <p>{format_to_html(resposta_gior)}</p>
             </div>
         """
