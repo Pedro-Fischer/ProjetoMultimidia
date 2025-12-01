@@ -448,7 +448,14 @@ def handle_descricao():
         if gior.dual_mode:
             html_gemini = f"""
                 <div class=\"feedback-container\">
-                    <h3>2. Análise Do Gemini:</h3>
+                    <h3>
+                        <img
+                        src=\"static/gemini.png"
+                        alt=\"Gemini\"
+                        style=\"width:1em;height:1em;vertical-align:-0.18em;margin-right:0.35em;object-fit:contain;\"
+                        />
+                        2. Análise Do Gemini:
+                    </h3>
                     <p>{format_to_html(resposta_gemini)}</p>
                 </div>
             """
