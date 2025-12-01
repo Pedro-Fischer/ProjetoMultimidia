@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StyleVision</title>
 
-    <!-- Socket.io -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
-    <!-- FONT: BARLOW -->
     <link
       href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
@@ -171,7 +169,7 @@
       }
 
       /* ================================
-           BUTTONS
+           BUTTONS (HIERARQUIA PEDIDA)
         =================================*/
       .controls {
         display: grid;
@@ -180,72 +178,79 @@
       }
 
       .btn {
-        padding: 14px 20px;
-        border-radius: 14px;
-        border: none;
-        font-size: 1rem;
+        padding: 16px 20px;
+        border-radius: 10px;
+        font-size: 0.95rem;
         cursor: pointer;
         font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
-        transition: all 0.25s ease;
+        gap: 8px;
+        transition: all 0.3s ease;
+        color: #fff;
       }
 
-      .btn:hover:not(:disabled) {
-        transform: translateY(-2px);
-        filter: brightness(0.92);
-      }
+      /* --- 1. DESTAQUES (COLORIDOS) --- */
 
-      .btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-
+      /* Ativar Sistema -> Dourado */
       .btn-primary {
-        background: #f1c76d;
-        color: #1e1e1e;
+        background: linear-gradient(135deg, #d4af37 0%, #aa8a2e 100%);
+        color: #111;
+        border: none;
+        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
       }
-      .btn-success {
-        background: #7ed957;
-        color: #0e2a0e;
-      }
+
+      /* Desativar Sistema -> Vermelho */
       .btn-danger {
-        background: #ff5f5f;
-        color: #2b0000;
+        background: linear-gradient(135deg, #c62828 0%, #8e0000 100%);
+        color: #fff;
+        border: none;
+        box-shadow: 0 4px 15px rgba(198, 40, 40, 0.4);
       }
-      .btn-warning {
-        background: #ffd166;
-        color: #1a1a1a;
+
+      /* --- 2. RESTO (NEUTROS/CINZA) --- */
+      /* Usando IDs e !important para garantir a cor cinza */
+      #btnGravar, 
+      #btnParar, 
+      #btnCapturar, 
+      #btnUpload, 
+      #btnDescrever {
+        background: #222 !important;
+        border: 1px solid #333 !important;
+        color: #aaa !important; /* Texto mais apagado */
+        box-shadow: none !important;
+      }
+
+      /* Hover dos neutros (fica mais claro ao passar o mouse) */
+      #btnGravar:hover:not(:disabled), 
+      #btnParar:hover:not(:disabled), 
+      #btnCapturar:hover:not(:disabled), 
+      #btnUpload:hover:not(:disabled), 
+      #btnDescrever:hover:not(:disabled) {
+        background: #333 !important;
+        border-color: #555 !important;
+        color: #fff !important;
       }
 
       .btn-full-width {
         grid-column: 1 / -1;
       }
 
-      /* Ícones nativos */
-      #btnGravar::before {
-        content: "";
+      /* Botões desabilitados */
+      .btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+        background: #1a1a1a !important;
+        border-color: transparent !important;
+        color: #444 !important;
+        box-shadow: none !important;
+        transform: none !important;
       }
-      #btnParar::before {
-        content: "";
-      }
-      #btnCapturar::before {
-        content: "";
-      }
-      #btnUpload::before {
-        content: "";
-      }
-      #btnDescrever::before {
-        content: "";
-      }
-      #btnDesativar::before {
-        content: "";
-      }
-      .btn-primary::before {
-        content: "";
-      }
+
+    
 
       /* ================================
            RECORDING INDICATOR
@@ -272,7 +277,7 @@
         margin-top: 10px;
       }
 
-      /* Caixas de feedback (cada modelo) - agora responsivas e lado a lado */
+      /* Caixas de feedback */
       #respostaBox {
         display: flex;
         gap: 18px;
@@ -280,7 +285,6 @@
         flex-wrap: wrap;
       }
 
-      /* Container onde o backend injeta as várias feedback-containers */
       #respostaText {
         display: flex;
         gap: 16px;
@@ -293,14 +297,12 @@
         padding: 18px;
         border-radius: 14px;
         border: 1px solid #2d2d2d;
-        /* layout: duas colunas em telas largas, empilha em telas pequenas */
         flex: 1 1 48%;
         min-width: 260px;
         box-sizing: border-box;
         margin-bottom: 12px;
       }
 
-      /* Garanta que no mobile as caixas fiquem empilhadas */
       @media (max-width: 960px) {
         #respostaBox {
           flex-direction: column;
@@ -341,15 +343,12 @@
 
   <body>
     <div class="container">
-      <!-- HEADER -->
       <header>
         <h1>StyleVision</h1>
         <p class="subtitle">Críticas de Moda Honestas com IA</p>
       </header>
 
-      <!-- GRID PRINCIPAL -->
       <div class="main-grid">
-        <!-- CARD 1 – VÍDEO -->
         <div class="card">
           <h2>Seu Look</h2>
 
@@ -366,7 +365,6 @@
           </div>
         </div>
 
-        <!-- CARD 2 – CONTROLES -->
         <div class="card">
           <h2>Controles</h2>
 
@@ -443,9 +441,6 @@
         </div>
       </div>
 
-      <!-- ===============================
-             CARD – RESPOSTA + LOG
-        ================================-->
       <div class="card">
         <h2>Sua Pergunta e Crítica</h2>
 
@@ -468,10 +463,6 @@
       </div>
     </div>
 
-    <!-- =====================================
-         JAVASCRIPT – MESMO CÓDIGO DO SEU ORIGINAL
-         (NÃO ALTEREI LÓGICA NENHUMA)
-    ======================================-->
     <script>
       const socket = io();
       let mediaRecorder;
@@ -602,9 +593,7 @@
         text.innerHTML = "";
         box.style.display = "block";
 
-        // Caso o backend envie respostas separadas por modelo
         if (data.respostas) {
-          // Gemini
           if (data.respostas.gemini) {
             const g = document.createElement("div");
             g.className = "feedback-container";
@@ -614,8 +603,6 @@
             `;
             text.appendChild(g);
           }
-
-          // GPT
           if (data.respostas.gpt) {
             const p = document.createElement("div");
             p.className = "feedback-container";
@@ -625,8 +612,6 @@
             `;
             text.appendChild(p);
           }
-
-          // Caso o backend envie apenas um campo `model` com `resposta`
         } else if (data.model) {
           const c = document.createElement("div");
           c.className = "feedback-container";
@@ -638,13 +623,10 @@
             <div>${data.resposta || ""}</div>
           `;
           text.appendChild(c);
-
-          // Caso padrão (string única)
         } else {
           text.innerHTML = data.resposta || "<em>Nenhuma resposta</em>";
         }
 
-        // Tratamento de áudio: preferir `audio_urls.gpt`, depois `audio_urls.gemini`, depois `audio_url`
         if (data.audio_urls) {
           audio.style.display = "none";
           if (data.audio_urls.gpt) {
