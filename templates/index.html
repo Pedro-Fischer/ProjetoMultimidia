@@ -250,6 +250,21 @@
         transform: none !important;
       }
 
+      /* --- 3. BOTÕES DE ÁUDIO (FUNDO DA PÁGINA) --- */
+      .audio-btn {
+        background: radial-gradient(circle at center, #171717, #0d0d0d) !important;
+        border: 1px solid #333 !important;
+        color: #fff !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+      }
+
+      .audio-btn:hover {
+        background: #1a1a1a !important;
+        border-color: #555 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+      }
+
     
 
       /* ================================
@@ -345,7 +360,7 @@
     <div class="container">
       <header>
         <h1>StyleVision</h1>
-        <p class="subtitle">Críticas de Moda Honestas com IA</p>
+        <p class="subtitle">Críticas de Moda com IA</p>
       </header>
 
       <div class="main-grid">
@@ -360,7 +375,7 @@
           </div>
 
           <div class="captured-preview" id="capturedPreview">
-            <h3>📸 Look Capturado</h3>
+            <h3>Look capturado</h3>
             <img id="capturedImage" src="" />
           </div>
         </div>
@@ -424,7 +439,7 @@
               onclick="obterDescricao()"
               disabled
             >
-              Obter Crítica
+              Obter crítica
             </button>
 
             <button
@@ -442,9 +457,9 @@
       </div>
 
       <div class="card">
-        <h2>Sua Pergunta e Crítica</h2>
+        <h2>Sua pergunta e crítica</h2>
 
-        <h3>Sua Pergunta:</h3>
+        <h3>Sua pergunta:</h3>
         <div class="transcricao-box" id="transcricaoBox">
           <em
             >Pergunte algo como: "Este look combina para um jantar formal?"</em
@@ -453,11 +468,16 @@
 
         <div id="respostaBox">
           <div id="respostaText"></div>
-          <audio id="audioResposta" controls style="display: none"></audio>
+          <div id="audioControls" style="margin-top: 16px; display: none;">
+            <button id="playGptAudio" class="btn audio-btn" style="margin-right: 8px;">🔊 Ouvir Análise GPT</button>
+            <button id="playGeminiAudio" class="btn audio-btn" style="display: none;">🔊 Ouvir Análise Gemini</button>
+          </div>
+          <audio id="audioGpt" style="display: none;"></audio>
+          <audio id="audioGemini" style="display: none;"></audio>
         </div>
 
         <div class="log-section">
-          <strong>Log de Atividades:</strong>
+          <strong>Log de atividades:</strong>
           <div id="logEntries"></div>
         </div>
       </div>
@@ -587,61 +607,42 @@
       socket.on("descricao_completa", (data) => {
         const box = document.getElementById("respostaBox");
         const text = document.getElementById("respostaText");
-        const audio = document.getElementById("audioResposta");
+        const audioControls = document.getElementById("audioControls");
+        const audioGpt = document.getElementById("audioGpt");
+        const audioGemini = document.getElementById("audioGemini");
+        const btnGpt = document.getElementById("playGptAudio");
+        const btnGemini = document.getElementById("playGeminiAudio");
 
         // Limpa conteúdo anterior
         text.innerHTML = "";
         box.style.display = "block";
+        audioControls.style.display = "none";
+        btnGemini.style.display = "none";
 
-        if (data.respostas) {
-          if (data.respostas.gemini) {
-            const g = document.createElement("div");
-            g.className = "feedback-container";
-            g.innerHTML = `
-              <img src="../assets/geminiicon.png" alt="" style="width: 40px; height: auto; margin-bottom: 8px" />
-              <div>${data.respostas.gemini}</div>
-            `;
-            text.appendChild(g);
-          }
-          if (data.respostas.gpt) {
-            const p = document.createElement("div");
-            p.className = "feedback-container";
-            p.innerHTML = `
-              <img src="../assets/openai.png" alt="" style="width: 40px; height: auto; margin-bottom: 8px" />
-              <div>${data.respostas.gpt}</div>
-            `;
-            text.appendChild(p);
-          }
-        } else if (data.model) {
-          const c = document.createElement("div");
-          c.className = "feedback-container";
-          const icon = data.model.toLowerCase().includes("gemini")
-            ? "../assets/geminiicon.png"
-            : "../assets/openai.png";
-          c.innerHTML = `
-            <img src="${icon}" alt="" style="width: 40px; height: auto; margin-bottom: 8px" />
-            <div>${data.resposta || ""}</div>
-          `;
-          text.appendChild(c);
-        } else {
-          text.innerHTML = data.resposta || "<em>Nenhuma resposta</em>";
+        // Exibir resposta(s)
+        if (data.resposta) {
+          text.innerHTML = data.resposta;
         }
 
+        // Configurar áudios
         if (data.audio_urls) {
-          audio.style.display = "none";
+          audioControls.style.display = "block";
+          
           if (data.audio_urls.gpt) {
-            audio.src = data.audio_urls.gpt + "?t=" + Date.now();
-            audio.style.display = "block";
-            audio.play();
-          } else if (data.audio_urls.gemini) {
-            audio.src = data.audio_urls.gemini + "?t=" + Date.now();
-            audio.style.display = "block";
-            audio.play();
+            audioGpt.src = data.audio_urls.gpt + "?t=" + Date.now();
+            btnGpt.style.display = "inline-block";
+          } else {
+            btnGpt.style.display = "none";
+          }
+          
+          if (data.audio_urls.gemini) {
+            audioGemini.src = data.audio_urls.gemini + "?t=" + Date.now();
+            btnGemini.style.display = "inline-block";
           }
         } else if (data.audio_url) {
-          audio.src = data.audio_url + "?t=" + Date.now();
-          audio.style.display = "block";
-          audio.play();
+          audioControls.style.display = "block";
+          audioGpt.src = data.audio_url + "?t=" + Date.now();
+          btnGpt.style.display = "inline-block";
         }
 
         addLog("Crítica recebida");
@@ -650,6 +651,21 @@
       socket.on("erro", (data) => {
         alert("Erro: " + data.mensagem);
         addLog("Erro: " + data.mensagem);
+      });
+
+      // Event listeners para os botões de áudio
+      document.getElementById("playGptAudio").addEventListener("click", () => {
+        const audioGpt = document.getElementById("audioGpt");
+        if (audioGpt.src) {
+          audioGpt.play();
+        }
+      });
+
+      document.getElementById("playGeminiAudio").addEventListener("click", () => {
+        const audioGemini = document.getElementById("audioGemini");
+        if (audioGemini.src) {
+          audioGemini.play();
+        }
       });
 
       addLog("Interface carregada.");

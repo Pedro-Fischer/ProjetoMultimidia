@@ -30,10 +30,10 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 class GiorWeb:
     def __init__(self):
-        self.ai_name = 'Consultor de Moda GIOR'
+        self.ai_name = 'Consultor de Moda StyleVision'
         self.historico_conversa = ''
         self.contexto = """
-Você é o 'Consultor de Moda GIOR', um crítico de moda experiente, direto, honesto e com um olhar apurado para estilo. Sua personalidade é **direta e impiedosa**, mas o feedback é sempre construtivo.
+Você é o 'Consultor de Moda StyleVision', um crítico de moda experiente, direto, honesto e com um olhar apurado para estilo. Sua personalidade é **direta e impiedosa**, mas o feedback é sempre construtivo.
 Sua função principal é analisar a imagem capturada (que mostra a roupa do utilizador) e fornecer uma crítica de moda verbal, relevante e **brutalmente honesta**, baseada na imagem e na pergunta feita.
 
 Instruções e Regras Essenciais:
@@ -51,12 +51,12 @@ Instruções e Regras Essenciais:
         * **3. Dica de Styling:** Uma sugestão de peça, acessório ou combinação para elevar o look restante.
 4.  **Linguagem e Tom:**
     * Fale sempre em **Português Brasileiro**, com um tom direto, confiante e profissional.
-    * O seu nome como consultor é **GIOR**. Comece a resposta com 'O Consultor GIOR tem um veredito: '
+    * O seu nome como consultor é **StyleVision**. Comece a resposta com 'O Consultor StyleVision tem um veredito: '
 5.  **Resposta a Comandos Específicos:**
     * **Se a pergunta for 'Combina com [evento/ambiente]?'**: Diga diretamente se a roupa é adequada ou um erro total para o local.
 
 Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'Posso ir a uma reunião de negócios assim?'):
-'O Consultor GIOR tem um veredito: Não. Este look é totalmente inadequado para uma reunião de negócios. **Veredito:** O jeans rasgado e a camiseta desbotada demonstram falta de seriedade. **O Conserto:** Use uma calça chino escura e um blazer simples imediatamente. **Dica de Styling:** Um lenço de bolso elegante traria um toque de autoridade.'
+'O Consultor StyleVision tem um veredito: Não. Este look é totalmente inadequado para uma reunião de negócios. **Veredito:** O jeans rasgado e a camiseta desbotada demonstram falta de seriedade. **O Conserto:** Use uma calça chino escura e um blazer simples imediatamente. **Dica de Styling:** Um lenço de bolso elegante traria um toque de autoridade.'
         """
         
         self.sistema_ativo = False
@@ -71,10 +71,14 @@ Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'P
         self.client = OpenAI()
         self.llm = ChatOpenAI(model='gpt-4o-mini', temperature=0, max_tokens=256)
         
-        # Whisper
+        # Whisper - usando modelo menor e mais rápido
         print("Carregando modelo Whisper...")
-        self.whisper_model = WhisperModel("medium")
-        print("Modelo Whisper carregado!")
+        try:
+            self.whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
+            print("Modelo Whisper carregado!")
+        except Exception as e:
+            print(f"Aviso: Não foi possível carregar Whisper: {e}")
+            self.whisper_model = None
         
         # Speech Recognition
         self.recognizer = sr.Recognizer()
@@ -88,6 +92,7 @@ Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'P
         # Flag de modo: True => usar OpenAI + Gemini | False => apenas OpenAI
         # Controlada por variável de ambiente DUAL_MODE (default: true)
         self.dual_mode = os.getenv('DUAL_MODE', 'true').strip().lower() in ['1','true','yes','on']
+        print(f"DEBUG: DUAL_MODE carregado como: {self.dual_mode} (valor raw: '{os.getenv('DUAL_MODE', 'true')}')")
 
     def ativar_camera(self):
         if self.camera is None:
@@ -327,6 +332,12 @@ Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'P
 
     def transcribe_audio(self, audio_file_path):
         try:
+            if self.whisper_model is None:
+                # Fallback para SpeechRecognition
+                with sr.AudioFile(audio_file_path) as source:
+                    audio = self.recognizer.record(source)
+                    return self.recognizer.recognize_google(audio, language='pt-BR')
+            
             segments, _ = self.whisper_model.transcribe(audio=audio_file_path, language='pt', beam_size=5)
             transcricao = ""
             for segment in segments:
@@ -397,6 +408,7 @@ def handle_audio(data):
 def handle_descricao():
     try:
         pergunta = gior.pergunta if gior.pergunta else "Descreva a cena e me dê o seu veredito de moda."
+        print(f"DEBUG: dual_mode atual = {gior.dual_mode}")
         if gior.dual_mode:
             emit('processando', {'mensagem': 'Processando OpenAI + Gemini...'})
         else:
@@ -408,6 +420,7 @@ def handle_descricao():
             return
 
         if gior.dual_mode:
+            print("DEBUG: Executando modo DUAL (OpenAI + Gemini)")
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
                 fut_openai = ex.submit(gior.obter_resposta, pergunta)
                 fut_gemini = ex.submit(gior.obter_analise_gemini, encoded_image, pergunta)
@@ -415,11 +428,19 @@ def handle_descricao():
                     resposta_gior = fut_openai.result(timeout=60)
                 except Exception as e:
                     resposta_gior = f"Erro OpenAI: {str(e)}"
+                    print(f"DEBUG: Erro na OpenAI: {e}")
                 try:
                     resposta_gemini = fut_gemini.result(timeout=60)
+                    print(f"DEBUG: Resposta Gemini recebida: {resposta_gemini[:100] if resposta_gemini else 'None'}...")
+                    # Se a resposta começar com "Erro", tratar como erro
+                    if not resposta_gemini or resposta_gemini.startswith("Erro"):
+                        print(f"DEBUG: Gemini retornou erro ou vazio: {resposta_gemini}")
+                        resposta_gemini = "Não foi possível fazer a análise do Gemini."
                 except Exception as e:
-                    resposta_gemini = f"Erro Gemini: {str(e)}"
+                    resposta_gemini = "Não foi possível fazer a análise do Gemini."
+                    print(f"DEBUG: Erro no Gemini: {e}")
         else:
+            print("DEBUG: Executando modo SINGLE (apenas OpenAI)")
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
                 fut_openai = ex.submit(gior.obter_resposta, pergunta)
                 try:
@@ -435,14 +456,20 @@ def handle_descricao():
 
         html_openai = f"""
             <div class=\"feedback-container\">
-                <h3>1. 👔 Crítica do Consultor GIOR (OpenAI):</h3>
+                <h3>Análise do GPT:</h3>
                 <p>{format_to_html(resposta_gior)}</p>
             </div>
         """
+
+        # SEMPRE mostrar a seção do Gemini quando dual_mode está ativado
         if gior.dual_mode:
+            # Se resposta_gemini é None ou vazia, mostrar mensagem padrão
+            if not resposta_gemini or resposta_gemini.strip() == "":
+                resposta_gemini = "Não foi possível fazer a análise do Gemini."
+            
             html_gemini = f"""
                 <div class=\"feedback-container\">
-                    <h3>2. Análise Do Gemini:</h3>
+                    <h3>Análise Do Gemini:</h3>
                     <p>{format_to_html(resposta_gemini)}</p>
                 </div>
             """
@@ -450,15 +477,43 @@ def handle_descricao():
         else:
             feedback_final_html = html_openai
 
-        texto_audio = f"A Crítica de Moda GIOR: {resposta_gior}"
-        audio_path = gior.gerar_audio(texto_audio)
+        # Gerar áudios para ambas as análises quando em modo DUAL
+        audio_urls = {}
+        
+        if gior.dual_mode and resposta_gemini and not resposta_gemini.startswith("Não foi possível"):
+            # Gerar áudio do GPT
+            texto_audio_gpt = f"Análise do GPT: {resposta_gior}"
+            audio_path_gpt = gior.gerar_audio(texto_audio_gpt)
+            if audio_path_gpt:
+                # Renomear para identificar que é do GPT
+                import shutil
+                gpt_path = 'static/resposta_gpt.mp3'
+                shutil.copy(audio_path_gpt, gpt_path)
+                audio_urls['gpt'] = '/' + gpt_path
+            
+            # Gerar áudio do Gemini
+            texto_audio_gemini = f"Análise do Gemini: {resposta_gemini}"
+            gemini_audio_path = gior.gerar_audio(texto_audio_gemini)
+            if gemini_audio_path:
+                # Renomear para identificar que é do Gemini
+                import shutil
+                gemini_path = 'static/resposta_gemini.mp3'
+                shutil.copy(gemini_audio_path, gemini_path)
+                audio_urls['gemini'] = '/' + gemini_path
+        else:
+            # Modo single ou Gemini falhou - apenas GPT
+            texto_audio = f"Análise do GPT: {resposta_gior}"
+            audio_path = gior.gerar_audio(texto_audio)
+            if audio_path:
+                audio_urls['gpt'] = '/' + audio_path
         
         gior.pergunta = ''
 
         
         emit('descricao_completa', {
             'resposta': feedback_final_html, 
-            'audio_url': '/' + audio_path if audio_path else None
+            'audio_urls': audio_urls if audio_urls else None,
+            'audio_url': audio_urls.get('gpt') if audio_urls else None  # fallback
         })
         
     except Exception as e:
