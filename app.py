@@ -456,7 +456,14 @@ def handle_descricao():
 
         html_openai = f"""
             <div class=\"feedback-container\">
-                <h3>Análise do GPT:</h3>
+                <h3>
+                    <img
+                        src=\"static/gpt_logo.png"
+                        alt=\"OpenAI\"
+                        style=\"width:1em;height:1em;vertical-align:-0.18em;margin-right:0.35em;object-fit:contain;\"
+                    />
+                    Análise do GPT:
+                </h3>
                 <p>{format_to_html(resposta_gior)}</p>
             </div>
         """
@@ -469,7 +476,14 @@ def handle_descricao():
             
             html_gemini = f"""
                 <div class=\"feedback-container\">
-                    <h3>Análise Do Gemini:</h3>
+                    <h3>
+                        <img
+                            src=\"static/gemini_logo.png"
+                            alt=\"Gemini\"
+                            style=\"width:1em;height:1em;vertical-align:-0.18em;margin-right:0.35em;object-fit:contain;\"
+                        />
+                        Análise Do Gemini:
+                    </h3>
                     <p>{format_to_html(resposta_gemini)}</p>
                 </div>
             """
