@@ -298,6 +298,7 @@
         gap: 18px;
         align-items: flex-start;
         flex-wrap: wrap;
+        flex-direction: column;
       }
 
       #respostaText {
@@ -305,6 +306,7 @@
         gap: 16px;
         flex: 1 1 auto;
         flex-wrap: wrap;
+        width: 100%;
       }
 
       .feedback-container {
@@ -312,10 +314,35 @@
         padding: 18px;
         border-radius: 14px;
         border: 1px solid #2d2d2d;
-        flex: 1 1 48%;
+        flex: 1 1 30%;
         min-width: 260px;
         box-sizing: border-box;
         margin-bottom: 12px;
+      }
+
+      /* Estilos específicos para cada consultor */
+      .consultor-classico {
+        border-left: 3px solid #8b7355;
+      }
+
+      .consultor-classico h3 {
+        color: #c9a57b;
+      }
+
+      .consultor-vanguardista {
+        border-left: 3px solid #e74c3c;
+      }
+
+      .consultor-vanguardista h3 {
+        color: #ff6b6b;
+      }
+
+      .consultor-pragmatico {
+        border-left: 3px solid #3498db;
+      }
+
+      .consultor-pragmatico h3 {
+        color: #5dade2;
       }
 
       @media (max-width: 960px) {
@@ -469,11 +496,16 @@
         <div id="respostaBox">
           <div id="respostaText"></div>
           <div id="audioControls" style="margin-top: 16px; display: none;">
-            <button id="playGptAudio" class="btn audio-btn" style="margin-right: 8px;">🔊 Ouvir Análise GPT</button>
-            <button id="playGeminiAudio" class="btn audio-btn" style="display: none;">🔊 Ouvir Análise Gemini</button>
+            <button id="playClassico" class="btn audio-btn" style="margin-right: 8px;">🔊 Ouvir O Clássico</button>
+            <button id="playVanguardista" class="btn audio-btn" style="margin-right: 8px;">🔊 Ouvir O Vanguardista</button>
+            <button id="playPragmatico" class="btn audio-btn">🔊 Ouvir O Pragmático</button>
           </div>
-          <audio id="audioGpt" style="display: none;"></audio>
-          <audio id="audioGemini" style="display: none;"></audio>
+          <div style="margin-top: 12px;">
+            <button id="btnLimparHistorico" class="btn btn-danger" style="display: none;">🗑️ Limpar Histórico de Conversas</button>
+          </div>
+          <audio id="audioClassico" style="display: none;"></audio>
+          <audio id="audioVanguardista" style="display: none;"></audio>
+          <audio id="audioPragmatico" style="display: none;"></audio>
         </div>
 
         <div class="log-section">
@@ -608,44 +640,53 @@
         const box = document.getElementById("respostaBox");
         const text = document.getElementById("respostaText");
         const audioControls = document.getElementById("audioControls");
-        const audioGpt = document.getElementById("audioGpt");
-        const audioGemini = document.getElementById("audioGemini");
-        const btnGpt = document.getElementById("playGptAudio");
-        const btnGemini = document.getElementById("playGeminiAudio");
+        const btnLimparHistorico = document.getElementById("btnLimparHistorico");
+        
+        const audioClassico = document.getElementById("audioClassico");
+        const audioVanguardista = document.getElementById("audioVanguardista");
+        const audioPragmatico = document.getElementById("audioPragmatico");
+        
+        const btnClassico = document.getElementById("playClassico");
+        const btnVanguardista = document.getElementById("playVanguardista");
+        const btnPragmatico = document.getElementById("playPragmatico");
 
         // Limpa conteúdo anterior
         text.innerHTML = "";
         box.style.display = "block";
         audioControls.style.display = "none";
-        btnGemini.style.display = "none";
+        btnLimparHistorico.style.display = "none";
 
-        // Exibir resposta(s)
+        // Exibir respostas dos 3 consultores
         if (data.resposta) {
           text.innerHTML = data.resposta;
         }
 
-        // Configurar áudios
+        // Configurar áudios dos 3 consultores
         if (data.audio_urls) {
           audioControls.style.display = "block";
+          btnLimparHistorico.style.display = "inline-block";
           
-          if (data.audio_urls.gpt) {
-            audioGpt.src = data.audio_urls.gpt + "?t=" + Date.now();
-            btnGpt.style.display = "inline-block";
-          } else {
-            btnGpt.style.display = "none";
-          }
+          btnClassico.style.display = data.audio_urls.classico ? "inline-block" : "none";
+          btnVanguardista.style.display = data.audio_urls.vanguardista ? "inline-block" : "none";
+          btnPragmatico.style.display = data.audio_urls.pragmatico ? "inline-block" : "none";
           
-          if (data.audio_urls.gemini) {
-            audioGemini.src = data.audio_urls.gemini + "?t=" + Date.now();
-            btnGemini.style.display = "inline-block";
+          if (data.audio_urls.classico) {
+            audioClassico.src = data.audio_urls.classico + "?t=" + Date.now();
           }
-        } else if (data.audio_url) {
-          audioControls.style.display = "block";
-          audioGpt.src = data.audio_url + "?t=" + Date.now();
-          btnGpt.style.display = "inline-block";
+          if (data.audio_urls.vanguardista) {
+            audioVanguardista.src = data.audio_urls.vanguardista + "?t=" + Date.now();
+          }
+          if (data.audio_urls.pragmatico) {
+            audioPragmatico.src = data.audio_urls.pragmatico + "?t=" + Date.now();
+          }
         }
 
-        addLog("Crítica recebida");
+        addLog("Críticas dos 3 consultores recebidas");
+      });
+
+      socket.on("historico_limpo", (data) => {
+        addLog(data.mensagem);
+        alert("Histórico limpo! Próxima conversa será uma nova sessão.");
       });
 
       socket.on("erro", (data) => {
@@ -653,18 +694,26 @@
         addLog("Erro: " + data.mensagem);
       });
 
-      // Event listeners para os botões de áudio
-      document.getElementById("playGptAudio").addEventListener("click", () => {
-        const audioGpt = document.getElementById("audioGpt");
-        if (audioGpt.src) {
-          audioGpt.play();
-        }
+      // Event listeners para os botões de áudio dos 3 consultores
+      document.getElementById("playClassico").addEventListener("click", () => {
+        const audio = document.getElementById("audioClassico");
+        if (audio.src) audio.play();
       });
 
-      document.getElementById("playGeminiAudio").addEventListener("click", () => {
-        const audioGemini = document.getElementById("audioGemini");
-        if (audioGemini.src) {
-          audioGemini.play();
+      document.getElementById("playVanguardista").addEventListener("click", () => {
+        const audio = document.getElementById("audioVanguardista");
+        if (audio.src) audio.play();
+      });
+
+      document.getElementById("playPragmatico").addEventListener("click", () => {
+        const audio = document.getElementById("audioPragmatico");
+        if (audio.src) audio.play();
+      });
+
+      // Limpar histórico de conversas
+      document.getElementById("btnLimparHistorico").addEventListener("click", () => {
+        if (confirm("Deseja limpar o histórico de todas as conversas?")) {
+          socket.emit("limpar_historico");
         }
       });
 

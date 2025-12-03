@@ -11,16 +11,11 @@ import concurrent.futures
 from io import BytesIO
 from PIL import Image
 import speech_recognition as sr
+import re
 
 from openai import OpenAI
 from faster_whisper import WhisperModel
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
 from dotenv import load_dotenv
-import requests
-import concurrent.futures
-import base64
-import os
 
 load_dotenv()
 
@@ -28,36 +23,108 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gior-secret-key-2025'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+class ChatSession:
+    """Gerencia o histórico de conversa e contexto acumulado"""
+    def __init__(self):
+        self.historico = []
+        self.imagens_enviadas = []
+    
+    def adicionar_mensagem(self, role, content, image_base64=None):
+        mensagem = {"role": role, "content": content}
+        if image_base64:
+            self.imagens_enviadas.append(image_base64)
+        self.historico.append(mensagem)
+    
+    def get_historico_formatado(self, consultor_contexto):
+        """Retorna histórico formatado para a API da OpenAI"""
+        messages = [{"role": "system", "content": consultor_contexto}]
+        messages.extend(self.historico)
+        return messages
+    
+    def limpar(self):
+        self.historico = []
+        self.imagens_enviadas = []
+
+
 class GiorWeb:
     def __init__(self):
-        self.ai_name = 'Consultor de Moda StyleVision'
-        self.historico_conversa = ''
-        self.contexto = """
-Você é o 'Consultor de Moda StyleVision', um crítico de moda experiente, direto, honesto e com um olhar apurado para estilo. Sua personalidade é **direta e impiedosa**, mas o feedback é sempre construtivo.
-Sua função principal é analisar a imagem capturada (que mostra a roupa do utilizador) e fornecer uma crítica de moda verbal, relevante e **brutalmente honesta**, baseada na imagem e na pergunta feita.
+        self.ai_name = 'StyleVision - Consultoria de Moda'
+        
+        # Definição dos 3 consultores com personalidades distintas
+        self.consultores = {
+            "classico": {
+                "nome": "O Clássico",
+                "voz_tts": "alloy",
+                "contexto": """Você é 'O Clássico', um consultor de moda tradicional e conservador, especializado em elegância atemporal.
 
-Instruções e Regras Essenciais:
+Sua abordagem:
+- Valoriza peças clássicas e atemporais
+- Prioriza regras formais de etiqueta e dress codes
+- Foca em elegância, sofisticação e bom gosto tradicional
+- Tom respeitoso, educado e profissional
 
-1.  **Análise Visual:**
-    * Identifique as principais peças, a paleta de cores, as texturas e o caimento da roupa.
-    * Avalie a **adequação e a funcionalidade** do look para o contexto do ambiente (se for possível inferir) ou para o contexto mencionado pelo usuário (ex: 'festa formal').
-2.  **A Regra da Crítica Honesta:**
-    * **Se o look estiver inadequado, com cores dissonantes, caimento ruim ou completamente estranho, você DEVE dizer isso de forma clara, sem floreios.** A honestidade é sua principal ferramenta.
-    * Mesmo a crítica negativa deve ser seguida por uma sugestão de como consertar o erro.
-3.  **Formato da Crítica (Foco em 3 Partes):**
-    * A sua resposta deve ser estruturada de forma concisa em três pontos, usando linguagem de moda (ex: 'caimento', 'coordenação', 'ponto focal', 'silhueta'):
-        * **1. O Veredito:** Uma declaração direta e honesta sobre a peça/combinação. Use frases de impacto (ex: "Não funcionou", "Erro grave de proporção").
-        * **2. O Conserto:** A sugestão de como consertar o erro primário (ex: "Substitua a peça X pela peça Y", "Ajuste o comprimento").
-        * **3. Dica de Styling:** Uma sugestão de peça, acessório ou combinação para elevar o look restante.
-4.  **Linguagem e Tom:**
-    * Fale sempre em **Português Brasileiro**, com um tom direto, confiante e profissional.
-    * O seu nome como consultor é **StyleVision**. Comece a resposta com 'O Consultor StyleVision tem um veredito: '
-5.  **Resposta a Comandos Específicos:**
-    * **Se a pergunta for 'Combina com [evento/ambiente]?'**: Diga diretamente se a roupa é adequada ou um erro total para o local.
+FORMATO OBRIGATÓRIO DE RESPOSTA (use exatamente estes 3 tópicos):
 
-Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'Posso ir a uma reunião de negócios assim?'):
-'O Consultor StyleVision tem um veredito: Não. Este look é totalmente inadequado para uma reunião de negócios. **Veredito:** O jeans rasgado e a camiseta desbotada demonstram falta de seriedade. **O Conserto:** Use uma calça chino escura e um blazer simples imediatamente. **Dica de Styling:** Um lenço de bolso elegante traria um toque de autoridade.'
-        """
+**Veredito:**
+[Sua declaração sobre o look]
+
+**O Problema:**
+[O que precisa ser corrigido - se não houver problemas, diga "Nenhum problema identificado"]
+
+**A Solução:**
+[Sugestão prática para melhorar ou manter o look]
+
+Fale em Português Brasileiro."""
+            },
+            "vanguardista": {
+                "nome": "O Vanguardista", 
+                "voz_tts": "nova",
+                "contexto": """Você é 'O Vanguardista', um consultor de moda moderno, ousado e criativo.
+
+Sua abordagem:
+- Valoriza inovação, criatividade e experimentação
+- Encoraja combinações inusitadas e tendências atuais
+- Aprecia ousadia e expressão pessoal através da moda
+- Tom inspirador, encorajador e energético
+
+FORMATO OBRIGATÓRIO DE RESPOSTA (use exatamente estes 3 tópicos):
+
+**Veredito:**
+[Sua declaração sobre o look]
+
+**O Problema:**
+[O que precisa ser corrigido - se não houver problemas, diga "Nenhum problema identificado"]
+
+**A Solução:**
+[Sugestão prática para melhorar ou manter o look]
+
+Fale em Português Brasileiro."""
+            },
+            "pragmatico": {
+                "nome": "O Pragmático",
+                "voz_tts": "onyx",
+                "contexto": """Você é 'O Pragmático', um consultor de moda direto, funcional e brutalmente honesto.
+
+Sua abordagem:
+- Análise objetiva sem rodeios ou falsas cortesias
+- Foca em praticidade, adequação e funcionalidade
+- Críticas honestas sempre acompanhadas de soluções
+- Tom direto, construtivo e sem floreios
+
+FORMATO OBRIGATÓRIO DE RESPOSTA (use exatamente estes 3 tópicos):
+
+**Veredito:**
+[Sua declaração sobre o look]
+
+**O Problema:**
+[O que precisa ser corrigido - se não houver problemas, diga "Nenhum problema identificado"]
+
+**A Solução:**
+[Sugestão prática para melhorar ou manter o look]
+
+Fale em Português Brasileiro."""
+            }
+        }
         
         self.sistema_ativo = False
         self.gravando_audio = False
@@ -67,9 +134,15 @@ Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'P
         self.current_frame = None
         self.audio_queue = queue.Queue()
         
-        # OpenAI e modelos
+        # Chat sessions para cada consultor
+        self.chat_sessions = {
+            "classico": ChatSession(),
+            "vanguardista": ChatSession(),
+            "pragmatico": ChatSession()
+        }
+        
+        # OpenAI client
         self.client = OpenAI()
-        self.llm = ChatOpenAI(model='gpt-4o-mini', temperature=0, max_tokens=256)
         
         # Whisper - usando modelo menor e mais rápido
         print("Carregando modelo Whisper...")
@@ -88,11 +161,8 @@ Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'P
             os.makedirs('frames')
         if not os.path.exists('static'):
             os.makedirs('static')
-
-        # Flag de modo: True => usar OpenAI + Gemini | False => apenas OpenAI
-        # Controlada por variável de ambiente DUAL_MODE (default: true)
-        self.dual_mode = os.getenv('DUAL_MODE', 'true').strip().lower() in ['1','true','yes','on']
-        print(f"DEBUG: DUAL_MODE carregado como: {self.dual_mode} (valor raw: '{os.getenv('DUAL_MODE', 'true')}')")
+        
+        print(f"Sistema iniciado com 3 consultores: Clássico, Vanguardista e Pragmático")
 
     def ativar_camera(self):
         if self.camera is None:
@@ -155,180 +225,97 @@ Exemplo de uma Crítica DURA (se a roupa for horrível e o usuário perguntar 'P
             print(f"Erro ao codificar imagem: {e}")
             return None
 
-    # --- NOVOS MÉTODOS: Google Gemini e Ollama ---
-    def obter_analise_gemini(self, encoded_image, pergunta):
-        """API 2: Google Gemini - Análise de Visão contextualizada."""
-        key = os.getenv('GEMINI_API_KEY')
-        model = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
-        if not key:
-            return "Erro: GEMINI_API_KEY não configurada no .env."
-
-        # Normaliza nome do modelo caso usuário informe sem o prefixo "models/"
-        if not model.startswith('models/'):
-            model = f'models/{model}'
-
-        url = f'https://generativelanguage.googleapis.com/v1beta/{model}:generateContent?key={key}'
-
-        # Prompt que sempre gera resposta, mesmo sem contexto visual
-        prompt_text = (
-            f"Você é um consultor de moda especializado. "
-            f"Analise a imagem da roupa fornecida e responda: '{pergunta}'. "
-            f"Se a pergunta for genérica, faça comentários gerais sobre a roupa na imagem."
-        )
-
-        # CORREÇÃO: Incluir a imagem no payload
-        parts = [{"text": prompt_text}]
-        
-        # Adicionar imagem se disponível
-        if encoded_image:
-            parts.append({
-                "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": encoded_image
-                }
-            })
-
-        payload = {
-            "contents": [{
-                "parts": parts
-            }],
-            "generationConfig": {
-                "temperature": 0.4,
-                "maxOutputTokens": 1024,
-                "candidateCount": 1
-            },
-            "safetySettings": [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-            ]
-        }
-
-        headers = {'Content-Type': 'application/json'}
-
+    def formatar_mensagem_consultor(self, consultor_tipo, pergunta, encoded_image=None):
+        """Formata mensagem com histórico de conversa para um consultor específico"""
         try:
-            r = requests.post(url, headers=headers, json=payload, timeout=25)
-            try:
-                j = r.json()
-            except Exception:
-                j = None
-
-            if r.status_code != 200:
-                body = (r.text or '')[:800]
-                return f"Erro no Gemini: status={r.status_code}, body={body}"
-
-            # DEBUG: Vamos ver o formato real da resposta
-            print(f"DEBUG Gemini Response: {j}")
-
-            # Parse da resposta do Gemini (várias tentativas)
-            if isinstance(j, dict):
-                # Formato padrão: candidates[].content.parts[].text
-                if 'candidates' in j and j['candidates']:
-                    candidates = j['candidates']
-                    if len(candidates) > 0:
-                        candidate = candidates[0]
-                        
-                        # Verifica se há parts com texto
-                        content = candidate.get('content', {})
-                        if isinstance(content, dict) and 'parts' in content:
-                            parts = content['parts']
-                            if parts and len(parts) > 0:
-                                for part in parts:
-                                    if isinstance(part, dict) and 'text' in part:
-                                        text = part['text']
-                                        if text and text.strip():
-                                            return text.strip()
-                        
-                        # Se não tem parts mas tem finishReason, significa que foi bloqueado ou vazio
-                        finish_reason = candidate.get('finishReason', '')
-                        if finish_reason == 'MAX_TOKENS':
-                            return "O Gemini iniciou uma resposta mas atingiu o limite. Tente uma pergunta mais curta."
-                        elif finish_reason == 'SAFETY':
-                            return "Resposta bloqueada por filtros de segurança do Gemini."
-                        elif finish_reason:
-                            return f"Gemini finalizou sem texto (motivo: {finish_reason})."
-                
-                # Formato alternativo: text direto no root
-                if 'text' in j:
-                    return j['text'].strip()
-
-            return f'Erro na resposta do Gemini: sem texto gerado. JSON: {str(j)[:400]}'
-
-        except Exception as e:
-            return f"Erro inesperado no Gemini: {str(e)}"
-        
-
-
-    def formatar_pergunta(self, pergunta):
-        try:
-            encoded_image = self.encode_image()
+            chat_session = self.chat_sessions[consultor_tipo]
+            consultor_contexto = self.consultores[consultor_tipo]["contexto"]
             
-            if encoded_image is None:
-                inputs = [
-                    [HumanMessage(
-                        content=f'{self.contexto}\n\nConversa atual:\n{self.historico_conversa}\n\nAluno: {pergunta}\n'
-                    )],
+            # Monta mensagens com histórico
+            messages = chat_session.get_historico_formatado(consultor_contexto)
+            
+            # Adiciona pergunta atual
+            if encoded_image:
+                user_content = [
+                    {"type": "text", "text": pergunta},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"}
+                    }
                 ]
-                return inputs
-
-            inputs = [
-                [HumanMessage(
-                    content=[
-                        {
-                            "type": "text",
-                            "text": f'{self.contexto}\n\nConversa atual:\n{self.historico_conversa}\n\nAluno: {pergunta}\nimagem: \n'
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded_image}"
-                            }
-                        }
-                    ]
-                )],
-            ]
-            return inputs
+            else:
+                user_content = pergunta
+            
+            messages.append({"role": "user", "content": user_content})
+            
+            return messages
+            
         except Exception as e:
-            print(f"Erro ao formatar pergunta: {e}")
+            print(f"Erro ao formatar mensagem para {consultor_tipo}: {e}")
             return None
 
-    def obter_resposta(self, pergunta):
+    def obter_resposta_consultor(self, consultor_tipo, pergunta, encoded_image=None):
+        """Obtém resposta de um consultor específico usando a API da OpenAI"""
         try:
-            input_data = self.formatar_pergunta(pergunta)
+            messages = self.formatar_mensagem_consultor(consultor_tipo, pergunta, encoded_image)
             
-            if input_data is None:
-                return "Erro ao processar a pergunta."
+            if messages is None:
+                return f"Erro ao formatar mensagem para {self.consultores[consultor_tipo]['nome']}"
             
-            answer = self.llm.stream(input_data[0])
-            self.historico_conversa += f"Aluno: {pergunta}\n {self.ai_name}:\n"
+            # Chama API da OpenAI
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                max_tokens=300,
+                temperature=0.7
+            )
             
-            resposta_completa = ""
-            for resp in answer:
-                resposta_completa += resp.content
+            resposta_texto = response.choices[0].message.content.strip()
             
-            self.historico_conversa += f"{resposta_completa}\n"
-            return resposta_completa
+            # Adiciona ao histórico da sessão
+            self.chat_sessions[consultor_tipo].adicionar_mensagem(
+                "user", 
+                pergunta, 
+                image_base64=encoded_image
+            )
+            self.chat_sessions[consultor_tipo].adicionar_mensagem(
+                "assistant",
+                resposta_texto
+            )
+            
+            return resposta_texto
             
         except Exception as e:
-            print(f"Erro durante a obtenção de resposta: {e}")
-            return f"Erro: {str(e)}"
+            print(f"Erro ao obter resposta de {consultor_tipo}: {e}")
+            return f"Erro ao consultar {self.consultores[consultor_tipo]['nome']}: {str(e)}"
 
-    def gerar_audio(self, texto):
+    def gerar_audio_consultor(self, texto, consultor_tipo):
+        """Gera áudio para a resposta de um consultor específico"""
         try:
+            voz = self.consultores[consultor_tipo]["voz_tts"]
+            
             response = self.client.audio.speech.create(
                 model="tts-1",
-                voice="onyx",
+                voice=voz,
                 input=texto,
                 speed=1.3
             )
             
-            audio_path = 'static/resposta.mp3'
+            audio_path = f'static/resposta_{consultor_tipo}.mp3'
             response.stream_to_file(audio_path)
             return audio_path
+            
         except Exception as e:
-            print(f"Erro ao gerar áudio: {e}")
+            print(f"Erro ao gerar áudio para {consultor_tipo}: {e}")
             return None
+    
+    def limpar_historico(self, consultor_tipo=None):
+        """Limpa histórico de conversa de um consultor específico ou de todos"""
+        if consultor_tipo:
+            self.chat_sessions[consultor_tipo].limpar()
+        else:
+            for tipo in self.consultores.keys():
+                self.chat_sessions[tipo].limpar()
 
     def transcribe_audio(self, audio_file_path):
         try:
@@ -406,119 +393,100 @@ def handle_audio(data):
 
 @socketio.on('obter_descricao')
 def handle_descricao():
+    """Handler atualizado para trabalhar com 3 consultores"""
     try:
-        pergunta = gior.pergunta if gior.pergunta else "Descreva a cena e me dê o seu veredito de moda."
-        print(f"DEBUG: dual_mode atual = {gior.dual_mode}")
-        if gior.dual_mode:
-            emit('processando', {'mensagem': 'Processando OpenAI + Gemini...'})
-        else:
-            emit('processando', {'mensagem': 'Processando apenas OpenAI (modo rápido)...'})
-
+        pergunta = gior.pergunta if gior.pergunta else 'Como está meu look?'
         encoded_image = gior.encode_image()
+        
         if not encoded_image:
-            emit('erro', {'mensagem': 'Erro: Nenhuma imagem capturada para análise. Por favor, capture ou envie uma foto.'})
+            emit('erro', {'mensagem': 'Erro: Nenhuma imagem capturada. Por favor, capture ou envie uma foto.'})
             return
-
-        if gior.dual_mode:
-            print("DEBUG: Executando modo DUAL (OpenAI + Gemini)")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
-                fut_openai = ex.submit(gior.obter_resposta, pergunta)
-                fut_gemini = ex.submit(gior.obter_analise_gemini, encoded_image, pergunta)
-                try:
-                    resposta_gior = fut_openai.result(timeout=60)
-                except Exception as e:
-                    resposta_gior = f"Erro OpenAI: {str(e)}"
-                    print(f"DEBUG: Erro na OpenAI: {e}")
-                try:
-                    resposta_gemini = fut_gemini.result(timeout=60)
-                    print(f"DEBUG: Resposta Gemini recebida: {resposta_gemini[:100] if resposta_gemini else 'None'}...")
-                    # Se a resposta começar com "Erro", tratar como erro
-                    if not resposta_gemini or resposta_gemini.startswith("Erro"):
-                        print(f"DEBUG: Gemini retornou erro ou vazio: {resposta_gemini}")
-                        resposta_gemini = "Não foi possível fazer a análise do Gemini."
-                except Exception as e:
-                    resposta_gemini = "Não foi possível fazer a análise do Gemini."
-                    print(f"DEBUG: Erro no Gemini: {e}")
-        else:
-            print("DEBUG: Executando modo SINGLE (apenas OpenAI)")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                fut_openai = ex.submit(gior.obter_resposta, pergunta)
-                try:
-                    resposta_gior = fut_openai.result(timeout=45)
-                except Exception as e:
-                    resposta_gior = f"Erro OpenAI: {str(e)}"
-            resposta_gemini = None
         
-        # --- GERAÇÃO DE HTML COMPLETO NO PYTHON ---
+        print(f"Processando consulta com os 3 consultores: {pergunta}")
+        emit('processando', {'mensagem': 'Consultando os 3 especialistas em moda...'})
         
-        def format_to_html(text):
-            return text.replace('**', '<strong>').replace('\n', '<br>')
-
-        html_openai = f"""
-            <div class=\"feedback-container\">
-                <h3>Análise do GPT:</h3>
-                <p>{format_to_html(resposta_gior)}</p>
-            </div>
-        """
-
-        # SEMPRE mostrar a seção do Gemini quando dual_mode está ativado
-        if gior.dual_mode:
-            # Se resposta_gemini é None ou vazia, mostrar mensagem padrão
-            if not resposta_gemini or resposta_gemini.strip() == "":
-                resposta_gemini = "Não foi possível fazer a análise do Gemini."
+        # Executar consultas aos 3 consultores em paralelo
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {}
+            for tipo in ['classico', 'vanguardista', 'pragmatico']:
+                futures[tipo] = executor.submit(
+                    gior.obter_resposta_consultor, 
+                    tipo, 
+                    pergunta, 
+                    encoded_image
+                )
             
-            html_gemini = f"""
-                <div class=\"feedback-container\">
-                    <h3>Análise Do Gemini:</h3>
-                    <p>{format_to_html(resposta_gemini)}</p>
+            # Coletar respostas
+            respostas = {}
+            for tipo, future in futures.items():
+                try:
+                    respostas[tipo] = future.result(timeout=30)
+                except Exception as e:
+                    print(f"Erro ao obter resposta de {tipo}: {e}")
+                    respostas[tipo] = f"Erro ao consultar {gior.consultores[tipo]['nome']}"
+        
+        # Formatar HTML com as 3 análises
+        def format_to_html(text):
+            text = text.replace('\n', '<br>')
+            text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
+            text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
+            return text
+        
+        feedback_html = ""
+        for tipo in ['classico', 'vanguardista', 'pragmatico']:
+            info = gior.consultores[tipo]
+            resposta = respostas.get(tipo, "Erro ao obter resposta")
+            
+            feedback_html += f"""
+                <div class="feedback-container consultor-{tipo}">
+                    <h3>{info['nome']}</h3>
+                    <p>{format_to_html(resposta)}</p>
                 </div>
             """
-            feedback_final_html = html_openai + html_gemini
-        else:
-            feedback_final_html = html_openai
-
-        # Gerar áudios para ambas as análises quando em modo DUAL
-        audio_urls = {}
         
-        if gior.dual_mode and resposta_gemini and not resposta_gemini.startswith("Não foi possível"):
-            # Gerar áudio do GPT
-            texto_audio_gpt = f"Análise do GPT: {resposta_gior}"
-            audio_path_gpt = gior.gerar_audio(texto_audio_gpt)
-            if audio_path_gpt:
-                # Renomear para identificar que é do GPT
-                import shutil
-                gpt_path = 'static/resposta_gpt.mp3'
-                shutil.copy(audio_path_gpt, gpt_path)
-                audio_urls['gpt'] = '/' + gpt_path
+        # Gerar áudios para os 3 consultores em paralelo
+        audio_urls = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            audio_futures = {}
+            for tipo in ['classico', 'vanguardista', 'pragmatico']:
+                if respostas.get(tipo) and not respostas[tipo].startswith("Erro"):
+                    audio_futures[tipo] = executor.submit(
+                        gior.gerar_audio_consultor,
+                        respostas[tipo],
+                        tipo
+                    )
             
-            # Gerar áudio do Gemini
-            texto_audio_gemini = f"Análise do Gemini: {resposta_gemini}"
-            gemini_audio_path = gior.gerar_audio(texto_audio_gemini)
-            if gemini_audio_path:
-                # Renomear para identificar que é do Gemini
-                import shutil
-                gemini_path = 'static/resposta_gemini.mp3'
-                shutil.copy(gemini_audio_path, gemini_path)
-                audio_urls['gemini'] = '/' + gemini_path
-        else:
-            # Modo single ou Gemini falhou - apenas GPT
-            texto_audio = f"Análise do GPT: {resposta_gior}"
-            audio_path = gior.gerar_audio(texto_audio)
-            if audio_path:
-                audio_urls['gpt'] = '/' + audio_path
+            for tipo, future in audio_futures.items():
+                try:
+                    audio_path = future.result(timeout=15)
+                    if audio_path:
+                        audio_urls[tipo] = '/' + audio_path
+                except Exception as e:
+                    print(f"Erro ao gerar áudio para {tipo}: {e}")
         
         gior.pergunta = ''
-
         
         emit('descricao_completa', {
-            'resposta': feedback_final_html, 
-            'audio_urls': audio_urls if audio_urls else None,
-            'audio_url': audio_urls.get('gpt') if audio_urls else None  # fallback
+            'resposta': feedback_html,
+            'audio_urls': audio_urls,
+            'consultores': ['classico', 'vanguardista', 'pragmatico']
         })
         
     except Exception as e:
-        print(f"Erro no handle_descricao principal: {e}")
+        print(f"Erro no handle_descricao: {e}")
         emit('erro', {'mensagem': f'Erro: {str(e)}'})
+
+@socketio.on('limpar_historico')
+def handle_limpar_historico(data=None):
+    """Limpa histórico de um consultor específico ou de todos"""
+    try:
+        consultor_tipo = data.get('consultor') if data else None
+        gior.limpar_historico(consultor_tipo)
+        emit('historico_limpo', {
+            'mensagem': f'Histórico limpo: {consultor_tipo if consultor_tipo else "todos"}' 
+        })
+    except Exception as e:
+        emit('erro', {'mensagem': f'Erro ao limpar histórico: {str(e)}'})
 
 @socketio.on('limpar_pergunta')
 def handle_limpar():
@@ -553,80 +521,15 @@ def handle_upload(data):
     except Exception as e:
         emit('erro', {'mensagem': f'Erro ao enviar imagem: {str(e)}'})
 
-@socketio.on('definir_modo')
-def handle_definir_modo(data):
-    """Altera dinamicamente o modo (dual ou somente OpenAI).
-    Espera um payload: { 'dual': true/false }
-    True => OpenAI + Gemini | False => apenas OpenAI
-    """
-    try:
-        dual = bool(data.get('dual', False))
-        gior.dual_mode = dual
-        emit('modo_atual', {'dual_mode': gior.dual_mode})
-    except Exception as e:
-        emit('erro', {'mensagem': f'Erro ao definir modo: {str(e)}'})
-
-@app.route('/api/feedbacks', methods=['GET'])
-def api_feedbacks():
-    pergunta = request.args.get('q', 'Descreva a cena')
-    # montar prompt: contexto + histórico + pergunta + imagem (se houver)
-    encoded_image = gior.encode_image()
-    prompt_text = gior.contexto + "\n\nConversa atual:\n" + (gior.historico_conversa or "") + "\n\nAluno: " + pergunta
-    if encoded_image:
-        prompt_text += "\n\n[IMAGEM_BASE64]:" + encoded_image
-    if gior.dual_mode:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
-            f_openai = ex.submit(gior.obter_resposta, pergunta)
-            f_gemini = ex.submit(gior.obter_analise_gemini, encoded_image, pergunta)
-            try:
-                openai_res = f_openai.result(timeout=35)
-                openai_obj = {'source': 'openai', 'ok': True, 'data': openai_res}
-            except Exception as e:
-                openai_obj = {'source': 'openai', 'ok': False, 'error': str(e)}
-            try:
-                gemini_text = f_gemini.result(timeout=35)
-                gemini_res = {'source': 'gemini', 'ok': True, 'data': gemini_text}
-            except Exception as e:
-                gemini_res = {'source': 'gemini', 'ok': False, 'error': str(e)}
-        results = [openai_obj, gemini_res]
-    else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            f_openai = ex.submit(gior.obter_resposta, pergunta)
-            try:
-                openai_res = f_openai.result(timeout=30)
-                openai_obj = {'source': 'openai', 'ok': True, 'data': openai_res}
-            except Exception as e:
-                openai_obj = {'source': 'openai', 'ok': False, 'error': str(e)}
-        results = [openai_obj]
-    return jsonify({'count': len(results), 'results': results})
-
-
-@app.route('/api/gemini_models', methods=['GET'])
-def api_gemini_models():
-    """Lista modelos disponíveis no Generative Language API para a GEMINI_API_KEY configurada.
-    Retorna o JSON direto da API do Google. Não expõe a chave no corpo da resposta do servidor.
-    """
-    key = os.getenv('GEMINI_API_KEY')
-    if not key:
-        return jsonify({'ok': False, 'error': 'GEMINI_API_KEY não configurada'}), 400
-
-    url = f'https://generativelanguage.googleapis.com/v1/models?key={key}'
-    try:
-        r = requests.get(url, timeout=15)
-        try:
-            j = r.json()
-        except Exception:
-            j = {'raw_text': (r.text or '')[:1000]}
-
-        if r.status_code != 200:
-            body = (r.text or '')[:500]
-            return jsonify({'ok': False, 'status': r.status_code, 'body': body}), r.status_code
-
-        # retornar apenas a lista de modelos (se existir)
-        models = j.get('models') if isinstance(j, dict) else None
-        return jsonify({'ok': True, 'models': models or j})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
+@app.route('/api/consultores', methods=['GET'])
+def api_consultores():
+    """Retorna informações sobre os 3 consultores disponíveis"""
+    consultores_info = {}
+    for tipo, info in gior.consultores.items():
+        consultores_info[tipo] = {
+            'nome': info['nome']
+        }
+    return jsonify({'consultores': consultores_info})
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
